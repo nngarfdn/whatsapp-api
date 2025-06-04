@@ -12,6 +12,7 @@ const client = new Client({
   }),
   puppeteer: {
     headless: true,
+    executablePath: process.env.CHROME_BIN || null,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -20,7 +21,21 @@ const client = new Client({
       '--no-first-run',
       '--no-zygote',
       '--single-process',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--disable-software-rasterizer',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--disable-site-isolation-trials',
+      '--disable-web-security',
+      '--disable-extensions',
+      '--disable-setuid-sandbox',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--no-default-browser-check',
+      '--safebrowsing-disable-auto-update'
     ]
   }
 });
@@ -42,7 +57,25 @@ client.on('ready', () => {
 });
 
 // Initialize client
-client.initialize().catch(console.error);
+let isInitializing = false;
+
+const initializeClient = async () => {
+  if (isInitializing) return;
+  isInitializing = true;
+  
+  try {
+    await client.initialize();
+  } catch (error) {
+    console.error('Error initializing client:', error);
+    // Try to reinitialize after 5 seconds
+    setTimeout(initializeClient, 5000);
+  } finally {
+    isInitializing = false;
+  }
+};
+
+// Start initialization
+initializeClient();
 
 // Middleware
 app.use(express.json());
@@ -52,8 +85,19 @@ app.get('/', (req, res) => {
   res.json({
     status: 'ok',
     whatsapp: isReady ? 'connected' : 'disconnected',
-    qrCode: !isReady && qrCode ? qrCode : null
+    qrCode: !isReady && qrCode ? qrCode : null,
+    timestamp: new Date().toISOString()
   });
+});
+
+// QR code endpoint
+app.get('/qr', (req, res) => {
+  if (qrCode) {
+    qrcode.generate(qrCode, { small: true });
+    res.send(`<pre>${qrCode}</pre>`);
+  } else {
+    res.status(404).json({ error: 'QR code not available yet' });
+  }
 });
 
 // Send message endpoint
