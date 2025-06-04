@@ -1,59 +1,88 @@
-const app = require('../src/app');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+const express = require('express');
 
-module.exports = async (req, res) => {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept, Authorization');
+const app = express();
 
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+// Initialize WhatsApp client with in-memory session
+const client = new Client({
+  authStrategy: new LocalAuth({
+    clientId: 'whatsapp-client',
+    dataPath: '/tmp/.wwebjs_auth'  // Use /tmp for serverless
+  }),
+  puppeteer: {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',
+      '--disable-gpu'
+    ]
+  }
+});
+
+let qrCode = null;
+let isReady = false;
+
+// Handle QR code generation
+client.on('qr', (qr) => {
+  console.log('QR Code received');
+  qrCode = qr;
+  qrcode.generate(qr, { small: true });
+});
+
+// Handle client ready
+client.on('ready', () => {
+  console.log('Client is ready!');
+  isReady = true;
+});
+
+// Initialize client
+client.initialize().catch(console.error);
+
+// Middleware
+app.use(express.json());
+
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    whatsapp: isReady ? 'connected' : 'disconnected',
+    qrCode: !isReady && qrCode ? qrCode : null
+  });
+});
+
+// Send message endpoint
+app.post('/send-message', async (req, res) => {
+  if (!isReady) {
+    return res.status(400).json({ error: 'WhatsApp client is not ready' });
   }
 
-  // Handle the request
-  return new Promise((resolve, reject) => {
-    const responseComplete = () => resolve(null);
-    const { method, url, headers } = req;
-    
-    // Create mock request/response objects
-    const request = {
-      ...req,
-      method,
-      url,
-      headers,
-      connection: { encrypted: req.connection.encrypted },
-    };
+  const { number, message } = req.body;
+  
+  if (!number || !message) {
+    return res.status(400).json({ error: 'Number and message are required' });
+  }
 
-    const response = {
-      ...res,
-      statusCode: 200,
-      end: (chunk, encoding) => {
-        if (chunk) res.end(chunk, encoding);
-        else res.end();
-        responseComplete();
-      },
-      setHeader: (name, value) => res.setHeader(name, value),
-      writeHead: (statusCode, statusMessage, headers) => {
-        res.statusCode = statusCode;
-        if (statusMessage) res.statusMessage = statusMessage;
-        if (headers) {
-          Object.entries(headers).forEach(([key, value]) => {
-            res.setHeader(key, value);
-          });
-        }
-      },
-    };
+  try {
+    const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+    await client.sendMessage(chatId, message);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
 
-    // Handle errors
-    response.on('error', reject);
-    
-    // Process the request
-    app(request, response, () => {
-      if (!response.writableEnded) {
-        response.end();
-      }
-    });
-  });
-};
+// Error handling
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// Export the serverless function
+module.exports = app;
