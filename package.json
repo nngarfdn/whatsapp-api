@@ -5,10 +5,13 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "dev": "node server.js",
     "test": "jest --runInBand",
-    "swagger": "node swagger.js"
+    "swagger": "node swagger.js",
+    "vercel-build": "echo 'Vercel build complete'"
   },
   "dependencies": {
+    "@vercel/node": "^4.1.0",
     "axios": "^1.7.7",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
@@ -42,6 +45,7 @@
   "engines": {
     "node": ">=14.17.0"
   },
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/chrishubert/whatsapp-web-api.git"
