@@ -11,7 +11,7 @@
     "vercel-build": "echo 'Vercel build complete'"
   },
   "dependencies": {
-    "@vercel/node": "^4.1.0",
+    "@vercel/node": "^3.0.0",
     "axios": "^1.7.7",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
