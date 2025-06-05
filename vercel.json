@@ -3,12 +3,11 @@
   "builds": [
     {
       "src": "api/index.js",
-      "use": "@vercel/node",
-      "config": {
-        "maxLambdaSize": "50mb",
-        "memory": 3008,
-        "maxDuration": 30
-      }
+      "use": "@vercel/node"
+    },
+    {
+      "src": "swagger.json",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -17,13 +16,18 @@
       "dest": "/api/api-docs"
     },
     {
+      "src": "/swagger.json",
+      "dest": "/swagger.json"
+    },
+    {
       "src": "/(.*)",
       "dest": "/api"
     }
   ],
   "env": {
     "NODE_ENV": "production",
-    "CHROME_BIN": "/usr/bin/google-chrome-stable"
+    "CHROME_BIN": "/usr/bin/google-chrome-stable",
+    "ENABLE_SWAGGER_ENDPOINT": "true"
   },
   "build": {
     "env": {
